@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor Idei de amenajare</title>
+<style>
+:root{
+  --onyx:#000F08; --jet:#1C3738; --crimson:#D72638; --cyan:#4B8F8C; --orange:#F49D37;
+  --bg:#EEF2F2; --panel:#fff; --line:#D9E2E2; --muted:#5E7273;
+  --tabs-h:52px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:Inter,"Segoe UI",system-ui,Arial,sans-serif;color:var(--onyx);background:var(--bg);font-size:14px;overflow:hidden}
+button{font:inherit;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit}
+
+/* ===== layout ===== */
+.app{display:grid;height:100vh;height:100dvh;grid-template-rows:1fr var(--tabs-h);grid-template-columns:300px 1fr 330px}
+.pane{min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.left{background:var(--panel);border-right:1px solid var(--line)}
+.right{background:var(--panel);border-left:1px solid var(--line)}
+.center{background:var(--bg)}
+.pane-head{background:var(--jet);color:#fff;padding:12px 16px;font-weight:600;font-size:13px;letter-spacing:.04em;text-transform:uppercase;display:flex;align-items:center;gap:8px;min-height:44px}
+.pane-body{flex:1;overflow:auto;padding:16px}
+
+/* ===== left ===== */
+label.lbl{display:block;font-weight:600;margin-bottom:6px;font-size:13px}
+.combo{position:relative}
+.combo input{width:100%;padding:9px 38px 9px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.combo input:focus,.field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--cyan);outline-offset:-1px}
+.combo .mag{position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+.combo ul{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 4px);margin:0;padding:4px;list-style:none;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,15,8,.15);max-height:220px;overflow:auto;display:none}
+.combo.open ul{display:block}
+.combo li{padding:8px 10px;border-radius:6px;cursor:pointer}
+.combo li:hover,.combo li.sel{background:#E3F0EF}
+.combo li.none{color:var(--muted);cursor:default}
+h3.sub{margin:22px 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--jet)}
+.hist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.hist li{border:1px solid var(--line);border-radius:8px;padding:9px 10px;display:flex;align-items:center;gap:8px;justify-content:space-between}
+.hist li.cur{border-color:var(--cyan);background:#EAF4F3}
+.hist b{display:block;font-size:13px}
+.hist small{color:var(--muted)}
+.btn-sm{border:1px solid var(--cyan);color:var(--cyan);background:#fff;border-radius:6px;padding:4px 10px;font-size:12px;white-space:nowrap}
+.btn-sm:hover{background:var(--cyan);color:#fff}
+.actions{padding:14px 16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px;background:#fff}
+.btn{border:0;border-radius:8px;padding:10px 14px;font-weight:600;color:#fff}
+.btn:hover{filter:brightness(1.08)}
+.btn.del{background:var(--crimson)}
+.btn.pub{background:var(--jet);color:#fff}
+.btn.later{background:var(--orange);color:var(--onyx)}
+.btn.ghost{background:#fff;color:var(--onyx);border:1px solid var(--line)}
+
+/* ===== center ===== */
+.devbar{display:flex;gap:6px;justify-content:center;padding:10px;background:#fff;border-bottom:1px solid var(--line);align-items:center}
+.devbar button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 16px;font-weight:600;color:var(--muted)}
+.devbar button.on{background:var(--cyan);border-color:var(--cyan);color:#fff}
+.stage{flex:1;overflow:auto;padding:20px;display:flex;justify-content:center;align-items:flex-start}
+.frame{width:100%;max-width:1100px;display:flex;flex-direction:column;gap:16px;transition:max-width .25s}
+.frame.tablet{max-width:768px}
+.frame.mobile{max-width:375px}
+.frame-title{padding:8px 14px;background:var(--jet);color:#fff;font-size:12px;letter-spacing:.04em}
+.sec-wrap{background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,15,8,.12);overflow:hidden;position:relative;cursor:pointer;outline:2px solid transparent;outline-offset:-2px;transition:outline-color .15s}
+.sec-wrap:hover{outline-color:var(--cyan)}
+.sec-wrap.selected{outline-color:var(--orange);outline-width:3px}
+.sec-del{position:absolute;top:10px;right:10px;z-index:3;background:var(--crimson);color:#fff;border:0;border-radius:6px;padding:6px 12px;font-weight:600;font-size:12px;opacity:0;transition:opacity .15s;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.sec-wrap:hover .sec-del,.sec-wrap.selected .sec-del{opacity:1}
+@media (hover:none){.sec-del{opacity:1}}
+.sec-tools{position:absolute;top:10px;right:10px;z-index:3;display:flex;gap:6px;opacity:0;transition:opacity .15s}
+.sec-wrap:hover .sec-tools,.sec-wrap.selected .sec-tools{opacity:1}
+@media (hover:none){.sec-tools{opacity:1}}
+.sec-tools button{border:0;border-radius:6px;padding:6px 10px;font-weight:700;font-size:12px;color:#fff;background:var(--jet);box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.sec-tools .sec-del{position:static;opacity:1;background:var(--crimson);padding:6px 12px}
+.sec-tools button:disabled{opacity:.4;cursor:default}
+.sec-tag{position:absolute;top:10px;left:10px;z-index:3;background:rgba(0,15,8,.75);color:#fff;font-size:11px;padding:4px 9px;border-radius:5px;opacity:0;transition:opacity .15s;pointer-events:none}
+.sec-wrap:hover .sec-tag,.sec-wrap.selected .sec-tag{opacity:1}
+.badge{background:var(--cyan);color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-style:normal;font-weight:600}
+.empty-slot{border:2px dashed var(--cyan);margin:16px;border-radius:10px;padding:40px 16px;text-align:center;color:var(--muted);background:#F5FAFA}
+.empty-slot b{display:block;color:var(--jet);margin-bottom:6px}
+.nothing{color:var(--muted);text-align:center;padding:60px 20px}
+
+/* banner rendering */
+.banner{position:relative;width:100%;background:#ccc center/cover no-repeat;display:flex;align-items:flex-end;aspect-ratio:16/7}
+.banner.banner-mare{aspect-ratio:16/9}
+.banner.banner-mic{aspect-ratio:16/4}
+.banner .box{margin:0 0 6%  6%;background:rgba(28,55,56,.88);color:#fff;padding:14px 18px;max-width:46%;border-radius:4px}
+.banner .box h4{margin:0 0 4px;font-size:clamp(14px,2.2vw,22px)}
+.banner .box p{margin:0 0 10px;font-size:clamp(11px,1.4vw,14px);opacity:.9}
+.banner .box span{display:inline-block;background:var(--orange);color:var(--onyx);font-weight:700;padding:6px 14px;border-radius:3px;font-size:clamp(11px,1.3vw,13px)}
+.banner.banner-promo .box{background:rgba(255,255,255,.94);color:var(--onyx);border-left:5px solid var(--crimson)}
+.banner.banner-promo .box span{background:var(--crimson);color:#fff}
+.banner .box:empty{display:none}
+.frame.mobile .banner .box,.frame.tablet .banner .box{max-width:80%}
+.frame.mobile .banner{aspect-ratio:4/5}
+.frame.mobile .banner.banner-mic{aspect-ratio:16/9}
+.textsec{padding:24px}
+.textsec h4{margin:0 0 8px;font-size:20px;color:var(--jet)}
+.textsec p{margin:0;line-height:1.55;color:#33484A}
+.crumbs{padding:14px 20px;color:var(--jet);font-size:14px;background:#F5FAFA}
+.crumbs span{color:var(--cyan);margin:0 6px}
+
+/* ===== right ===== */
+.sec-list{display:flex;flex-direction:column;gap:12px}
+.sec-card{border:2px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;background:#fff;text-align:left;padding:0;transition:border-color .15s}
+.sec-card:hover{border-color:var(--cyan)}
+.sec-card.on{border-color:var(--orange)}
+.sec-card .thumb{height:92px;background:#dfe8e8 center/cover no-repeat;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;padding:6px;text-align:center}
+.sec-card .cap{padding:8px 10px;font-weight:600;font-size:13px;display:flex;justify-content:space-between;gap:8px}
+.sec-card .cap em{font-style:normal;font-weight:500;color:var(--muted);font-size:12px}
+.back{background:none;border:0;color:#fff;font-weight:600;padding:0}
+.field{margin-bottom:14px}
+.field label{display:block;font-weight:600;font-size:13px;margin-bottom:5px}
+.field input,.field select,.field textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.field textarea{resize:vertical;min-height:70px}
+.hint{color:var(--muted);font-size:12px;margin-top:4px}
+
+/* ===== mobile switch ===== */
+.mswitch{display:none;grid-column:1/-1;background:var(--jet)}
+.mswitch button{flex:1;background:none;border:0;color:#cfe0df;padding:10px 4px;font-weight:600;border-top:3px solid transparent}
+.mswitch button.on{color:#fff;border-top-color:var(--orange)}
+
+/* ===== bottom tabs ===== */
+.tabs{grid-column:1/-1;background:var(--jet);display:flex;align-items:stretch;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;height:var(--tabs-h)}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;border:0;background:var(--jet);padding:0 24px;color:#cfe0df;font-size:16px;font-weight:600;white-space:nowrap;border-top:3px solid transparent}
+.tab:hover{background:#264647;color:#fff}
+.tab.on{background:#fff;color:var(--cyan);border-top-color:var(--orange)}
+
+/* ===== modal/toast ===== */
+.modal-bg{position:fixed;inset:0;background:rgba(0,15,8,.5);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal-bg.show{display:flex}
+.modal{background:#fff;border-radius:12px;padding:22px;width:100%;max-width:380px}
+.modal h2{margin:0 0 8px;font-size:18px}
+.modal p{margin:0 0 14px;color:var(--muted)}
+.modal input{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;margin-bottom:14px}
+.modal .row{display:flex;gap:8px;justify-content:flex-end}
+.toast{position:fixed;left:50%;bottom:calc(var(--tabs-h) + 70px);transform:translateX(-50%) translateY(20px);background:var(--onyx);color:#fff;padding:10px 18px;border-radius:8px;opacity:0;pointer-events:none;transition:.25s;z-index:60}
+.toast.show{opacity:1;transform:translateX(-50%)}
+
+/* ===== responsive ===== */
+@media (max-width:980px){
+  .app{grid-template-columns:1fr;grid-template-rows:1fr auto var(--tabs-h)}
+  .mswitch{display:flex;grid-row:2}
+  .tabs{grid-row:3}
+  .pane{display:none;grid-column:1;grid-row:1}
+  .app[data-pane="left"] .left,.app[data-pane="center"] .center,.app[data-pane="right"] .right{display:flex}
+  .left,.right{border:0}
+  .stage{padding:12px}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app" data-pane="center">
+
+  <!-- STÂNGA -->
+  <aside class="pane left">
+    <div class="pane-head">Control</div>
+    <div class="pane-body">
+      <label class="lbl" for="fileInput">Fișierul de modificat</label>
+      <div class="combo" id="combo">
+        <input id="fileInput" autocomplete="off" placeholder="Caută fișier...">
+        <span class="mag">&#128269;</span>
+        <ul id="fileList"></ul>
+      </div>
+      <h3 class="sub">Istoric modificări</h3>
+      <ul class="hist" id="hist"></ul>
+    </div>
+    <div class="actions">
+      <button class="btn del" id="bDel">Șterge</button>
+      <button class="btn pub" id="bPub">Publică</button>
+      <button class="btn later" id="bLater">Publică ulterior</button>
+    </div>
+  </aside>
+
+  <!-- CENTRU -->
+  <main class="pane center">
+    <div class="devbar" id="devbar">
+      <button data-d="desktop" class="on">Desktop</button>
+      <button data-d="tablet">Tabletă</button>
+      <button data-d="mobile">Mobil</button>
+    </div>
+    <div class="stage"><div class="frame" id="frame"></div></div>
+  </main>
+
+  <!-- DREAPTA -->
+  <aside class="pane right">
+    <div class="pane-head" id="rHead"></div>
+    <div class="pane-body" id="rBody"></div>
+  </aside>
+
+  <div class="mswitch" id="mswitch">
+    <button data-p="left">Control</button>
+    <button data-p="center" class="on">Previzualizare</button>
+    <button data-p="right">Secțiuni</button>
+  </div>
+
+  <!-- TAB-URI JOS -->
+  <nav class="tabs" id="tabs"></nav>
+</div>
+
+<div class="modal-bg" id="mLater"><div class="modal">
+  <h2>Publică ulterior</h2><p>Alege data și ora publicării.</p>
+  <input type="datetime-local" id="dt">
+  <div class="row"><button class="btn ghost" data-close>Renunță</button><button class="btn pub" id="dtOk">Programează</button></div>
+</div></div>
+<div class="modal-bg" id="mDel"><div class="modal">
+  <h2>Șterge fișierul</h2><p id="delTxt"></p>
+  <div class="row"><button class="btn ghost" data-close>Renunță</button><button class="btn del" id="delOk">Șterge</button></div>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const TABS=["Breadcrumbs","Zone categorii","Zona 1","Zona 2","Zona 3","Zona 4","Zona 5","Zona text","Zona 7"];
+const CLASSES=["banner-mare","banner-mic","banner-promo"];
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* imagini placeholder (SVG generat) */
+const PAL=["#4B8F8C","#1C3738","#F49D37","#D72638","#6aa9a6"];
+function imgUrl(v){
+  if(!v) return "";
+  if(v.startsWith("placeholder:")){
+    const t=v.slice(12)||"Imagine", i=[...t].reduce((a,c)=>a+c.charCodeAt(0),0);
+    const c1=PAL[i%5], c2=PAL[(i+2)%5];
+    const svg=`<svg xmlns='http://www.w3.org/2000/svg' width='1600' height='700'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='${c1}'/><stop offset='1' stop-color='${c2}'/></linearGradient></defs><rect width='1600' height='700' fill='url(#g)'/><text x='800' y='330' font-family='Arial' font-size='64' fill='white' text-anchor='middle' opacity='.9'>${esc(t)}</text><text x='800' y='400' font-family='Arial' font-size='28' fill='white' text-anchor='middle' opacity='.7'>imagine placeholder</text></svg>`;
+    return "data:image/svg+xml;utf8,"+encodeURIComponent(svg);
+  }
+  return v;
+}
+
+/* date de test */
+function mkBanner(name,title,sub,btn,cls){return {id:"s"+Math.random().toString(36).slice(2,8),type:"banner",name,banner:{img:"placeholder:"+name,title,sub,btn,cls:cls||"banner-mare"}}}
+function mkData(){
+  const d={};
+  d["Breadcrumbs"]=[
+    {id:"c1",type:"crumb",name:"Cale navigare",text:"Acasă > Idei de amenajare > Living"},
+    {id:"c2",type:"crumb",name:"Cale navigare mobil",text:"Idei de amenajare > Living"}];
+  d["Zone categorii"]=[
+    mkBanner("Canapele","Canapele","Descoperă colecția","Vezi produsele"),
+    mkBanner("Dormitoare","Dormitoare","Somn odihnitor","Vezi produsele","banner-mic"),
+    mkBanner("Birouri","Birouri","Spațiu de lucru","Vezi produsele","banner-mic")];
+  const z=(n,items)=>d["Zona "+n]=items.map(([a,b,c,e,f])=>mkBanner(a,b,c,e,f));
+  z(1,[["Afișare Desktop","Colțare moderne","Confort pentru toată familia","Descoperă"],["Living Nordic","Stil scandinav","Lemn și textile naturale","Vezi ideea","banner-promo"],["Sufragerie","Comode TV","Spațiu de depozitare","Vezi colecția"],["Hol","Hol primitor","Idei practice","Vezi ideea","banner-mic"]]);
+  z(2,[["Dormitor","Dormitor liniștit","Culori calde","Vezi ideea"],["Pat tapițat","Paturi tapițate","Reduceri până la 30%","Cumpără","banner-promo"],["Dressing","Dressing la comandă","Organizare perfectă","Detalii","banner-mic"]]);
+  z(3,[["Bucătărie","Bucătării moderne","Funcționale și frumoase","Descoperă"],["Masă","Mese extensibile","Pentru orice ocazie","Vezi produsele","banner-mic"]]);
+  z(4,[["Birou acasă","Birou acasă","Productivitate","Vezi ideea"],["Scaune","Scaune ergonomice","Confort la birou","Vezi produsele","banner-promo"],["Rafturi","Biblioteci","Ordine și stil","Detalii","banner-mic"]]);
+  z(5,[["Copii","Camera copiilor","Joacă și odihnă","Vezi ideea"],["Pat etajat","Paturi etajate","Economie de spațiu","Cumpără","banner-promo"]]);
+  d["Zona text"]=[
+    {id:"t1",type:"text",name:"Text introducere",title:"Idei de amenajare",text:"Inspiră-te din colecțiile noastre și găsește stilul potrivit pentru fiecare cameră din casă."},
+    {id:"t2",type:"text",name:"Text final",title:"Ai nevoie de ajutor?",text:"Consultanții noștri te ajută să alegi mobilierul perfect pentru spațiul tău."}];
+  z(7,[["Terasă","Mobilier de grădină","Sezon nou","Vezi colecția"],["Balcon","Balcon confortabil","Mic dar rafinat","Descoperă","banner-mic"]]);
+  return d;
+}
+const clone=o=>JSON.parse(JSON.stringify(o));
+const now=(off=0)=>{const t=new Date(Date.now()-off*864e5);return t.toLocaleDateString("ro-RO")+" "+t.toLocaleTimeString("ro-RO",{hour:"2-digit",minute:"2-digit"})};
+
+/* stare */
+const FILES={};
+["idei-amenajare-living.html","idei-amenajare-dormitor.html","idei-amenajare-bucatarie.html","idei-amenajare-birou.html","pagina-principala.html","categorii-mobila.html"].forEach((n,i)=>{
+  const d=mkData();
+  FILES[n]={data:d,history:[{label:"Versiune curentă",time:now(),data:clone(d),cur:true},{label:"Modificat banner",time:now(1+i),data:clone(d)},{label:"Versiune inițială",time:now(5+i),data:clone(d)}]};
+});
+let fileName=Object.keys(FILES)[0], tab=TABS[2], device="desktop", centerList=[], sel=null, editing=false;
+const cur=()=>FILES[fileName];
+const secs=()=>cur().data[tab]||[];
+const findSec=r=>r?((cur().data[r.tab]||[]).find(x=>x.id===r.id)||null):null;
+const cs=()=>findSec(sel);
+const same=(a,b)=>a&&b&&a.tab===b.tab&&a.id===b.id;
+const inCenter=r=>centerList.some(x=>same(x,r));
+
+/* ===== render ===== */
+function renderTabs(){
+  $("#tabs").innerHTML=TABS.map(t=>`<button class="tab ${t===tab?"on":""}" data-t="${esc(t)}">${esc(t)}</button>`).join("");
+}
+function secHTML(s){
+  if(s.type==="crumb") return `<div class="crumbs">${esc(s.text).replace(/ &gt; /g,"<span>›</span>")}</div>`;
+  if(s.type==="text") return `<div class="textsec"><h4>${esc(s.title)}</h4><p>${esc(s.text)}</p></div>`;
+  const b=s.banner; if(!b) return "";
+  const box=(b.title||b.sub||b.btn)?`<div class="box">${b.title?`<h4>${esc(b.title)}</h4>`:""}${b.sub?`<p>${esc(b.sub)}</p>`:""}${b.btn?`<span>${esc(b.btn)}</span>`:""}</div>`:"";
+  return `<div class="banner ${esc(b.cls)}" style="background-image:url('${imgUrl(b.img).replace(/'/g,"%27")}')">${box}</div>`;
+}
+function renderCenter(){
+  const f=$("#frame"); f.className="frame "+device;
+  centerList=centerList.filter(r=>findSec(r));
+  if(!centerList.length){f.innerHTML=`<div class="nothing">Pagina e goală.<br>Apasă pe o secțiune din lista din dreapta ca să o adaugi aici.</div>`;return}
+  f.innerHTML=centerList.map((r,k)=>{
+    const x=findSec(r), on=editing&&same(r,sel);
+    return `<div class="sec-wrap ${on?"selected":""}" data-i="${k}"><span class="sec-tag">${esc(r.tab)} · ${esc(x.name)}</span><div class="sec-tools"><button data-a="up" ${k===0?"disabled":""} title="Mută sus">↑</button><button data-a="down" ${k===centerList.length-1?"disabled":""} title="Mută jos">↓</button><button class="sec-del" data-a="del">Ștergere</button></div>${secHTML(x)}</div>`}).join("");
+}
+function renderRight(){
+  const head=$("#rHead"), body=$("#rBody");
+  const s=cs();
+  if(editing&&s){
+    head.innerHTML=`<button class="back" id="back">← Înapoi</button><span>Editare · ${esc(s.name)}</span>`;
+    let h="";
+    if(s.type==="banner"){
+      const b=s.banner;
+      h=`<div class="field"><label>Link imagine</label><input data-k="img" value="${esc(b.img)}" placeholder="https://..."><div class="hint">Lasă „placeholder:Nume” pentru imagine de test.</div></div>
+      <div class="field"><label>Titlu</label><input data-k="title" value="${esc(b.title)}"></div>
+      <div class="field"><label>Subtitlu</label><input data-k="sub" value="${esc(b.sub)}"></div>
+      <div class="field"><label>Text buton</label><input data-k="btn" value="${esc(b.btn)}"></div>
+      <div class="field"><label>Clasă</label><select data-k="cls">${CLASSES.map(c=>`<option ${c===b.cls?"selected":""}>${c}</option>`).join("")}</select></div>`;
+    } else if(s.type==="text"){
+      h=`<div class="field"><label>Titlu</label><input data-t="title" value="${esc(s.title)}"></div>
+      <div class="field"><label>Text</label><textarea data-t="text">${esc(s.text)}</textarea></div>`;
+    } else {
+      h=`<div class="field"><label>Cale (separă cu „ > ”)</label><input data-t="text" value="${esc(s.text)}"></div>`;
+    }
+    body.innerHTML=h;
+  } else {
+    head.innerHTML=`<span>Secțiuni · ${esc(tab)}</span>`;
+    body.innerHTML=`<div class="sec-list">${secs().map(x=>{
+      const on=inCenter({tab,id:x.id});
+      const th=x.type==="banner"?`style="background-image:url('${imgUrl(x.banner.img).replace(/'/g,"%27")}')"`:"";
+      const txt=x.type==="banner"?"":x.type==="text"?esc(x.text).slice(0,60)+"…":esc(x.text);
+      return `<button class="sec-card ${on?"on":""}" data-s="${x.id}"><div class="thumb" ${th}>${txt}</div><div class="cap"><span>${esc(x.name)}</span>${on?'<em class="badge">✓ adăugată</em>':'<em>'}${on?"":(x.type==="banner"?"banner":x.type==="text"?"text":"link")}</em></div></button>`}).join("")||`<div class="nothing">Nicio secțiune.</div>`}</div>`;
+  }
+}
+function renderHist(){
+  $("#hist").innerHTML=cur().history.map((h,i)=>`<li class="${h.cur?"cur":""}"><div><b>${esc(h.label)}</b><small>${esc(h.time)}</small></div>${h.cur?"":`<button class="btn-sm" data-r="${i}">Restaurează</button>`}</li>`).join("");
+}
+function renderAll(){renderTabs();renderCenter();renderRight();renderHist()}
+
+/* ===== evenimente ===== */
+function selectTab(t){tab=t;editing=false;renderAll()}
+$("#tabs").addEventListener("click",e=>{const b=e.target.closest(".tab");if(b){selectTab(b.dataset.t);b.scrollIntoView({inline:"nearest",block:"nearest"})}});
+$("#devbar").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;device=b.dataset.d;document.querySelectorAll("#devbar button").forEach(x=>x.classList.toggle("on",x===b));renderCenter()});
+$("#rBody").addEventListener("click",e=>{
+  const c=e.target.closest(".sec-card");
+  if(c){
+    const r={tab,id:c.dataset.s};
+    if(inCenter(r)){toast("Secțiunea e deja în pagină")} else {centerList.push(r);toast("Secțiune adăugată")}
+    sel=r;editing=false;renderCenter();renderRight();
+    const w=document.querySelectorAll(".sec-wrap")[centerList.findIndex(x=>same(x,r))];
+    if(innerWidth<=980)setPane("center");
+    if(w)setTimeout(()=>w.scrollIntoView({behavior:"smooth",block:"nearest"}),50);
+  }
+});
+$("#rHead").addEventListener("click",e=>{if(e.target.id==="back"){editing=false;renderCenter();renderRight()}});
+$("#frame").addEventListener("click",e=>{
+  const w=e.target.closest(".sec-wrap"); if(!w) return;
+  const k=+w.dataset.i, r=centerList[k], a=e.target.closest("[data-a]");
+  if(a){
+    e.stopPropagation();
+    if(a.dataset.a==="del"){centerList.splice(k,1);if(same(sel,r)){sel=null;editing=false}toast("Secțiune ștearsă din pagină")}
+    else{const n=a.dataset.a==="up"?k-1:k+1;if(n<0||n>=centerList.length)return;[centerList[k],centerList[n]]=[centerList[n],centerList[k]]}
+    renderAll();return;
+  }
+  sel=r;editing=true;renderCenter();renderRight();if(innerWidth<=980)setPane("right");
+});
+$("#rBody").addEventListener("input",e=>{
+  const s=cs(); if(!s)return;
+  const k=e.target.dataset.k,t=e.target.dataset.t;
+  if(k)s.banner[k]=e.target.value; else if(t)s[t]=e.target.value; else return;
+  renderCenter();
+});
+$("#rBody").addEventListener("change",e=>{if(e.target.dataset.k==="img")renderRight()});
+
+/* istoric */
+$("#hist").addEventListener("click",e=>{
+  const b=e.target.closest("[data-r]");if(!b)return;
+  const h=cur().history[+b.dataset.r];
+  cur().data=clone(h.data);
+  cur().history.forEach(x=>x.cur=false);
+  cur().history.unshift({label:"Restaurat: "+h.label,time:now(),data:clone(h.data),cur:true});
+  centerList=centerList.filter(r=>findSec(r));if(!cs())sel=null;
+  editing=false;renderAll();toast("Versiune restaurată");
+});
+
+/* dropdown cu căutare */
+const combo=$("#combo"),inp=$("#fileInput"),ul=$("#fileList");
+function fillList(q=""){
+  const r=Object.keys(FILES).filter(n=>n.toLowerCase().includes(q.toLowerCase()));
+  ul.innerHTML=r.length?r.map(n=>`<li data-n="${esc(n)}" class="${n===fileName?"sel":""}">${esc(n)}</li>`).join(""):`<li class="none">Niciun rezultat</li>`;
+}
+inp.addEventListener("focus",()=>{inp.select();fillList();combo.classList.add("open")});
+inp.addEventListener("input",()=>{fillList(inp.value);combo.classList.add("open")});
+ul.addEventListener("mousedown",e=>{
+  const li=e.target.closest("li[data-n]");if(!li)return;
+  fileName=li.dataset.n;inp.value=fileName;combo.classList.remove("open");inp.blur();
+  centerList=[];sel=null;editing=false;renderAll();
+});
+document.addEventListener("click",e=>{if(!combo.contains(e.target)){combo.classList.remove("open");inp.value=fileName}});
+
+/* butoane acțiuni */
+function snapshot(label){
+  cur().history.forEach(x=>x.cur=false);
+  cur().history.unshift({label,time:now(),data:clone(cur().data),cur:true});
+  renderHist();
+}
+$("#bPub").onclick=()=>{snapshot("Publicat");toast("Fișier publicat: "+fileName)};
+$("#bLater").onclick=()=>{
+  const d=new Date(Date.now()+36e5);d.setMinutes(0);
+  $("#dt").value=new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,16);
+  $("#mLater").classList.add("show")};
+$("#dtOk").onclick=()=>{
+  const v=$("#dt").value;if(!v)return;
+  $("#mLater").classList.remove("show");
+  snapshot("Programat: "+new Date(v).toLocaleString("ro-RO",{dateStyle:"short",timeStyle:"short"}));
+  toast("Publicare programată");
+};
+$("#bDel").onclick=()=>{$("#delTxt").textContent="Sigur vrei să ștergi „"+fileName+"”?";$("#mDel").classList.add("show")};
+$("#delOk").onclick=()=>{
+  $("#mDel").classList.remove("show");
+  delete FILES[fileName];
+  const k=Object.keys(FILES);
+  if(!k.length){FILES["fisier-nou.html"]={data:mkData(),history:[]};k.push("fisier-nou.html")}
+  fileName=k[0];inp.value=fileName;centerList=[];sel=null;editing=false;renderAll();toast("Fișier șters");
+};
+document.querySelectorAll(".modal-bg").forEach(m=>m.addEventListener("click",e=>{if(e.target===m||e.target.hasAttribute("data-close"))m.classList.remove("show")}));
+
+/* mobil */
+function setPane(p){$("#app").dataset.pane=p;document.querySelectorAll("#mswitch button").forEach(b=>b.classList.toggle("on",b.dataset.p===p))}
+$("#mswitch").addEventListener("click",e=>{const b=e.target.closest("button");if(b)setPane(b.dataset.p)});
+
+let tt;function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");clearTimeout(tt);tt=setTimeout(()=>t.classList.remove("show"),2200)}
+
+/* start */
+inp.value=fileName;if(secs()[0])centerList=[{tab,id:secs()[0].id}];renderAll();
+</script>
+</body>
+</html>
